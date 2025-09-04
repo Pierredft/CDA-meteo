@@ -103,26 +103,26 @@ export default function HomeScreen() {
   // Récupération automatique au démarrage
   useEffect(() => {
     getLocation();
-  }, [getLocation]);
+  }, []);
   return (
     <ImageBackground source={fond} style={styles.img_background}>
       <SafeAreaView style={styles.container}>
         <View style={styles.meteo_basic}>
-          {weatherData ? (
+          {weatherData && weatherData.current_weather ? (
             <>
               <Text style={styles.city}>{cityName}</Text>
               <Text style={styles.temperature}>
-                {Math.round(weatherData.current_weather.temperature)}°C
+                {weatherData.current_weather.temperature !== undefined ? Math.round(weatherData.current_weather.temperature) + '°C' : 'N/A'}
               </Text>
               <Text style={styles.weatherDescription}>
-                {getWeatherDescription(weatherData.current_weather.weathercode)}
+                {weatherData.current_weather.weathercode !== undefined ? getWeatherDescription(weatherData.current_weather.weathercode) : ''}
               </Text>
               <View style={styles.weatherDetails}>
                 <Text style={styles.detailText}>
-                  💨 {weatherData.current_weather.windspeed} km/h
+                  {weatherData.current_weather.windspeed !== undefined ? `💨 ${weatherData.current_weather.windspeed} km/h` : ''}
                 </Text>
                 <Text style={styles.detailText}>
-                  🧭 {getWindDirection(weatherData.current_weather.winddirection)}
+                  {weatherData.current_weather.winddirection !== undefined ? `🧭 ${getWindDirection(weatherData.current_weather.winddirection)}` : ''}
                 </Text>
               </View>
             </>
