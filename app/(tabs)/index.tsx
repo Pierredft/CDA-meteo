@@ -1,13 +1,15 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const fond = require('../../assets/images/fond.jpg')
 
 export default function HomeScreen() {
   const [weatherData, setWeatherData] = useState<any>(null);
-  // const [location, setLocation] = useState<Location.LocationObject | null>(null); // Supprimé car inutilisé
+  const [searchCity, setSearchCity] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [cityName, setCityName] = useState('Ma position');
 
   // Fonction pour récupérer la météo
   const getWeatherData = async (latitude: number, longitude: number) => {
@@ -22,18 +24,23 @@ export default function HomeScreen() {
 
   // Fonction pour récupérer la géolocalisation
   const getLocation = useCallback(async () => {
+    setIsLoading(true);
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         console.log('Permission de géolocalisation refusée');
+        setIsLoading(false);
         return;
       }
-      let location = await Location.getCurrentPositionAsync({});
 
-      // Appel de l'API météo avec les coordonnées
-      getWeatherData(location.coords.latitude, location.coords.longitude);
+      let location = await Location.getCurrentPositionAsync({});
+      setCityName('Ma position');
+      await getWeatherData(location.coords.latitude, location.coords.longitude);
     } catch (error) {
-      console.error('Erreur lors de la récupération de la géolocalisation:', error);
+      console.error('Erreur géolocalisation:', error);
+      alert('Erreur de géolocalisation');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -67,6 +74,31 @@ export default function HomeScreen() {
     return directions[index];
   };
 
+  // Fonction pour rechercher une ville
+  const handleCitySearch = async () => {
+    if(!searchCity.trim()) return;
+
+    setIsLoading(true);
+    try {
+      // Utilisation de l'API Geocoding d'Open-Meteo pour convertir une ville en coordonnées
+      const geocodingResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchCity)}&count=1&language=fr&format=json`);
+      const geocodingData = await geocodingResponse.json();
+
+      if (geocodingData.results && Array.isArray(geocodingData.results) && geocodingData.results.length > 0) {
+        const city = geocodingData.results[0];
+        await getWeatherData(city.latitude, city.longitude);
+        setCityName(`${city.name}, ${city.country}`);
+      } else {
+        alert('Ville non trouvée. Vérifiez l\'orthographe ou essayez une autre ville.');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la recherche de la ville:', error);
+      alert('Erreur lors de la recherche de la ville. Veuillez réessayer plus tard.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   // Récupération automatique au démarrage
   useEffect(() => {
@@ -78,7 +110,7 @@ export default function HomeScreen() {
         <View style={styles.meteo_basic}>
           {weatherData ? (
             <>
-              <Text style={styles.city}>Météo actuelle</Text>
+              <Text style={styles.city}>{cityName}</Text>
               <Text style={styles.temperature}>
                 {Math.round(weatherData.current_weather.temperature)}°C
               </Text>
@@ -97,11 +129,24 @@ export default function HomeScreen() {
           ) : (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="white" />
-              <Text style={styles.loadingText}>Récupération météo...</Text>
+              <Text style={styles.loadingText}>
+                {isLoading ? 'Recherche en cours...' : 'Récupération météo...'}
+              </Text>
             </View>
           )}
         </View>
-        <View style={styles.searchbar}></View>
+        <View style={styles.searchbar}>
+          <View style={styles.searchContainer}>
+            <TextInput style={styles.searchInput} placeholder="Rechercher une ville..." placeholderTextColor="rgba(255,255,255,0.6)" value={searchCity} onChangeText={setSearchCity} onSubmitEditing={handleCitySearch} />
+            <TouchableOpacity style={styles.searchButton} onPress={handleCitySearch} disabled={isLoading}>
+              <Text style={styles.searchButtonText}>🔎</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.locationButton} onPress={getLocation} disabled={isLoading}>
+            <Text style={styles.locationButtonText}>📍 Utiliser ma position</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.meteo_advanced}></View>
       </SafeAreaView>
     </ImageBackground>
@@ -121,18 +166,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
-  searchbar: {
-    flex: 2,
-  },
+  // searchbar: doublon supprimé
   meteo_advanced: {
     flex: 1,
   },
-  city: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.9)',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
+  // city: doublon supprimé
   temperature: {
     fontSize: 64,
     fontWeight: 'bold',
@@ -171,5 +209,57 @@ const styles = StyleSheet.create({
   loadingContainer: {
   justifyContent: 'center',
   alignItems: 'center',
-},
+  },
+  searchbar: {
+      flex: 2,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      width: '100%',
+      marginBottom: 16,
+    },
+    searchInput: {
+      flex: 1,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 25,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: 'white',
+      marginRight: 8,
+    },
+    searchButton: {
+      backgroundColor: 'rgba(255,255,255,0.3)',
+      borderRadius: 25,
+      width: 50,
+      height: 50,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    searchButtonText: {
+      fontSize: 20,
+    },
+    locationButton: {
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 20,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+    },
+    locationButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    
+    // Modification du style city existant
+    city: {
+      fontSize: 18,
+      color: 'rgba(255,255,255,0.9)',
+      marginBottom: 8,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
 });
